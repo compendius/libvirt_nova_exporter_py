@@ -90,7 +90,8 @@ class MakeLibvirt:
 
 def getlibvirt(domain):
  
-
+    usedcache=0
+    usednocache=0
 ## get cpu time    
     try: 
       cPut = domain.getCPUStats(True)
@@ -145,7 +146,7 @@ if __name__ == '__main__':
     parser.add_argument("--uri", default="qemu:///system", type=str, help="url for libvirt connection")
     parser.add_argument("--path", default="/metrics",  type=str, help="Scrape path")
     parser.add_argument("--port", default="9100", type=int, help="Scrape port")
-    parser.add_argument("--log", default="./nova_libvirt.log", type=str, help="log file path")
+    parser.add_argument("--log", default="./libvirt_nova.log", type=str, help="log file path")
 
     args = parser.parse_args()
     luri=args.uri
@@ -157,7 +158,7 @@ if __name__ == '__main__':
 
     logger = logging.getLogger('libvirt nova exporter logger')
 
-    fh = RotatingFileHandler(llog, maxBytes=10000, backupCount=1)
+    fh = RotatingFileHandler(llog, maxBytes=3000000, backupCount=4)
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
     fh.setFormatter(formatter)
     logger.addHandler(fh)
