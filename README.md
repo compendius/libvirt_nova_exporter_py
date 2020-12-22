@@ -1,2 +1,2 @@
-# libvirt_nova_exporter_python
+# libvirt_nova_exporter_py
 python version of libvirt exporter
