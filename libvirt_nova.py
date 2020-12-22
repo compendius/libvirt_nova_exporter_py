@@ -29,22 +29,36 @@ from logging.handlers import RotatingFileHandler
 
 class CustomCollector(object):
     def collect(self):
-        t = getlibvirt()
-        d = GaugeMetricFamily('libvirt_nova_instance_memory_used_kb', 'instance memory used without buffers/cache', labels=['novaname','libvirtname','novaproject'])
-        e = GaugeMetricFamily('libvirt_nova_instance_memory_cache_used_kb', 'instance memory used including buffers/cache', labels=['novaname','libvirtname','novaproject'])
-        f = GaugeMetricFamily('libvirt_nova_instance_memory_alloc_kb', 'instance memory allocated', labels=['novaname','libvirtname','novaproject'])
-        g = GaugeMetricFamily('libvirt_nova_instance_total_vcpu', 'intance vcpu allocated', labels=['novaname','libvirtname','novaproject'])
-        c = CounterMetricFamily('libvirt_nova_instance_cpu_time_total', 'instance vcpu time', labels=['novaname','libvirtname','novaproject'])
-        c.add_metric([str(t.novaname),str(t.libvirtname),str(t.novaproject)], t.vcput)
-        d.add_metric([str(t.novaname),str(t.libvirtname),str(t.novaproject)], t.usednocache)
-        e.add_metric([str(t.novaname),str(t.libvirtname),str(t.novaproject)], t.usedcache)
-        f.add_metric([str(t.novaname),str(t.libvirtname),str(t.novaproject)], t.availm)
-        g.add_metric([str(t.novaname),str(t.libvirtname),str(t.novaproject)], t.vcputot)
-        yield c
-        yield d
-        yield e
-        yield f
-        yield g
+        
+        try:
+          conn = libvirt.openReadOnly(luri)
+        except Exception:
+            logger.exception('error connecting to libvirt')
+        try:
+          domainID = conn.listDomainsID()
+      
+          if len(domainID) != 0:
+             for domainID in domainID:
+               domain = conn.lookupByID(domainID)
+               t = getlibvirt(domain)
+               d = GaugeMetricFamily('libvirt_nova_instance_memory_used_kb', 'instance memory used without buffers/cache', labels=['novaname','libvirtname','novaproject'])
+               e = GaugeMetricFamily('libvirt_nova_instance_memory_cache_used_kb', 'instance memory used including buffers/cache', labels=['novaname','libvirtname','novaproject'])
+               f = GaugeMetricFamily('libvirt_nova_instance_memory_alloc_kb', 'instance memory allocated', labels=['novaname','libvirtname','novaproject'])
+               g = GaugeMetricFamily('libvirt_nova_instance_total_vcpu', 'intance vcpu allocated', labels=['novaname','libvirtname','novaproject'])
+               c = CounterMetricFamily('libvirt_nova_instance_cpu_time_total', 'instance vcpu time', labels=['novaname','libvirtname','novaproject'])
+               c.add_metric([str(t.novaname),str(t.libvirtname),str(t.novaproject)], t.vcput)
+               d.add_metric([str(t.novaname),str(t.libvirtname),str(t.novaproject)], t.usednocache)
+               e.add_metric([str(t.novaname),str(t.libvirtname),str(t.novaproject)], t.usedcache)
+               f.add_metric([str(t.novaname),str(t.libvirtname),str(t.novaproject)], t.availm)
+               g.add_metric([str(t.novaname),str(t.libvirtname),str(t.novaproject)], t.vcputot)
+               yield c
+               yield d
+               yield e
+               yield f
+               yield g
+        except Exception:
+            logger.exception('error getting libvirt domains')
+        conn.close()
 
 ## Need custom http handler top present custom endpoint of /metrics or user choice
 
@@ -74,51 +88,52 @@ class MakeLibvirt:
 
 ## Function to talk to libvirt and collect metrics 
 
-def getlibvirt():
+def getlibvirt(domain):
  
-    try:
-      conn = libvirt.openReadOnly(luri)
 
-    except Exception:
-        logger.exception('error connecting to libvirt')
-    domainID = conn.listDomainsID()
-    
-    if len(domainID) != 0:
-        for domainID in domainID:
-            domain = conn.lookupByID(domainID)
 ## get cpu time    
-   
-    cPut = domain.getCPUStats(True)
-    listCPU = cPut[0]['cpu_time']
-## get total cpus
-    vcputot = domain.maxVcpus()
-## get memory
-    memi = domain.memoryStats()
-    availm = memi.get("available")
-    unusedm = memi.get("unused")
-    usablem = memi.get("usable")
-    if (availm is None):
-        usedm = "0"
-        availm = "0"
-        usablem = "0"
-    else:
-        usedcache = (availm - unusedm)
-        usednocache = (availm - usablem)
-    
+    try: 
+      cPut = domain.getCPUStats(True)
+      listCPU = cPut[0]['cpu_time']
+    except:
+       logger.exception('error getting libvirt cpu stats')
+  ## get total cpus
+    try:
+      vcputot = domain.maxVcpus()
+    except:
+       logger.exception('error getting libvirt maxcpu stats')
+  ## get memory
+    try:
+      memi = domain.memoryStats()
+      availm = memi.get("available")
+      unusedm = memi.get("unused")
+      usablem = memi.get("usable")
+      if (availm is None):
+          usedm = "0"
+          availm = "0"
+          usablem = "0"
+      else:
+          usedcache = (availm - unusedm)
+          usednocache = (availm - usablem)
+    except:
+       logger.exception('error getting libvirt memory stats')
+      
 ## Parse xml to get nova information
     
     ns = {'oa': 'http://openstack.org/xmlns/libvirt/nova/1.0'}
-    tree = ET.fromstring(domain.XMLDesc())
-    libvirt_name = str(tree.find('name').text)
-    libvirt_uuid = str(tree.find('uuid').text)
+    try:
+      tree = ET.fromstring(domain.XMLDesc())
+      libvirt_name = str(tree.find('name').text)
+      libvirt_uuid = str(tree.find('uuid').text)
+      
+      for tree1 in tree.findall('metadata'):
+          for char in tree1.findall('oa:instance', ns):
+              nova_name = str(char.find('oa:name', ns).text)
+              for char1 in char.findall('oa:owner', ns):
+                  nova_project = str(char1.find('oa:project', ns).text)
+    except:
+       logger.exception('error getting libvirt xml dump')
     
-    for tree1 in tree.findall('metadata'):
-        for char in tree1.findall('oa:instance', ns):
-            nova_name = str(char.find('oa:name', ns).text)
-            for char1 in char.findall('oa:owner', ns):
-                nova_project = str(char1.find('oa:project', ns).text)
-    
-    conn.close()
 
     return MakeLibvirt(nova_name,libvirt_name,nova_project,availm,usednocache,usedcache,listCPU,vcputot)
 
