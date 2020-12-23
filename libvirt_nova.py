@@ -41,21 +41,22 @@ class CustomCollector(object):
              for domainID in domainID:
                domain = conn.lookupByID(domainID)
                t = getlibvirt(domain)
-               d = GaugeMetricFamily('libvirt_nova_instance_memory_used_kb', 'instance memory used without buffers/cache', labels=['novaname','libvirtname','novaproject'])
-               e = GaugeMetricFamily('libvirt_nova_instance_memory_cache_used_kb', 'instance memory used including buffers/cache', labels=['novaname','libvirtname','novaproject'])
-               f = GaugeMetricFamily('libvirt_nova_instance_memory_alloc_kb', 'instance memory allocated', labels=['novaname','libvirtname','novaproject'])
-               g = GaugeMetricFamily('libvirt_nova_instance_total_vcpu', 'intance vcpu allocated', labels=['novaname','libvirtname','novaproject'])
-               c = CounterMetricFamily('libvirt_nova_instance_cpu_time_total', 'instance vcpu time', labels=['novaname','libvirtname','novaproject'])
-               c.add_metric([str(t.novaname),str(t.libvirtname),str(t.novaproject)], t.vcput)
-               d.add_metric([str(t.novaname),str(t.libvirtname),str(t.novaproject)], t.usednocache)
-               e.add_metric([str(t.novaname),str(t.libvirtname),str(t.novaproject)], t.usedcache)
-               f.add_metric([str(t.novaname),str(t.libvirtname),str(t.novaproject)], t.availm)
-               g.add_metric([str(t.novaname),str(t.libvirtname),str(t.novaproject)], t.vcputot)
-               yield c
-               yield d
-               yield e
-               yield f
-               yield g
+               if t.errchk==0:
+                 d = GaugeMetricFamily('libvirt_nova_instance_memory_used_kb', 'instance memory used without buffers/cache', labels=['novaname','libvirtname','novaproject'])
+                 e = GaugeMetricFamily('libvirt_nova_instance_memory_cache_used_kb', 'instance memory used including buffers/cache', labels=['novaname','libvirtname','novaproject'])
+                 f = GaugeMetricFamily('libvirt_nova_instance_memory_alloc_kb', 'instance memory allocated', labels=['novaname','libvirtname','novaproject'])
+                 g = GaugeMetricFamily('libvirt_nova_instance_total_vcpu', 'intance vcpu allocated', labels=['novaname','libvirtname','novaproject'])
+                 c = CounterMetricFamily('libvirt_nova_instance_cpu_time_total', 'instance vcpu time', labels=['novaname','libvirtname','novaproject'])
+                 c.add_metric([str(t.novaname),str(t.libvirtname),str(t.novaproject)], t.vcput)
+                 d.add_metric([str(t.novaname),str(t.libvirtname),str(t.novaproject)], t.usednocache)
+                 e.add_metric([str(t.novaname),str(t.libvirtname),str(t.novaproject)], t.usedcache)
+                 f.add_metric([str(t.novaname),str(t.libvirtname),str(t.novaproject)], t.availm)
+                 g.add_metric([str(t.novaname),str(t.libvirtname),str(t.novaproject)], t.vcputot)
+                 yield c
+                 yield d
+                 yield e
+                 yield f
+                 yield g
         except Exception:
             logger.exception('error getting libvirt domains')
         conn.close()
@@ -76,7 +77,7 @@ class MetricsHandlerCustom(MetricsHandler):
 ## Class for collected metrics
 
 class MakeLibvirt: 
-    def __init__(self,novaname,libvirtname,novaproject,availm,usednocache,usedcache,vcput,vcputot): 
+    def __init__(self,novaname,libvirtname,novaproject,availm,usednocache,usedcache,vcput,vcputot,errchk): 
         self.novaname = novaname
         self.libvirtname = libvirtname
         self.novaproject = novaproject
@@ -85,6 +86,7 @@ class MakeLibvirt:
         self.usednocache = usednocache
         self.vcput = vcput 
         self.vcputot = vcputot
+        self.errchk = errchk
 
 ## Function to talk to libvirt and collect metrics 
 
@@ -92,16 +94,19 @@ def getlibvirt(domain):
  
     usedcache=0
     usednocache=0
+    errchk=0
 ## get cpu time    
     try: 
       cPut = domain.getCPUStats(True)
       listCPU = cPut[0]['cpu_time']
     except:
+       errchk=1
        logger.exception('error getting libvirt cpu stats')
   ## get total cpus
     try:
       vcputot = domain.maxVcpus()
     except:
+       errchk=1
        logger.exception('error getting libvirt maxcpu stats')
   ## get memory
     try:
@@ -117,6 +122,7 @@ def getlibvirt(domain):
           usedcache = (availm - unusedm)
           usednocache = (availm - usablem)
     except:
+       errchk=1
        logger.exception('error getting libvirt memory stats')
       
 ## Parse xml to get nova information
@@ -133,10 +139,11 @@ def getlibvirt(domain):
               for char1 in char.findall('oa:owner', ns):
                   nova_project = str(char1.find('oa:project', ns).text)
     except:
+       errchk=1
        logger.exception('error getting libvirt xml dump')
     
 
-    return MakeLibvirt(nova_name,libvirt_name,nova_project,availm,usednocache,usedcache,listCPU,vcputot)
+    return MakeLibvirt(nova_name,libvirt_name,nova_project,availm,usednocache,usedcache,listCPU,vcputot,errchk)
 
 if __name__ == '__main__':
 ## Grab command line options
