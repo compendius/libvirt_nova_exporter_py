@@ -1,4 +1,4 @@
-# Libvirt Nova Exporter
+# Libvirt Nova Exporter (python release)
 
 Prometheus libvirt exporter for Openstack Nova instances
 
