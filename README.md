@@ -11,7 +11,7 @@ The principal is to get real time usage information, for example how many vcpus 
 
 ### Run
 
-I have created a Dockerfile to build an image with all python dependencies. It used the official python alpine image to limit size.
+I have created a Dockerfile to build an image with all python dependencies. It uses the official python alpine image to limit size.
 
 For example on port 9204
 
