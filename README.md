@@ -11,10 +11,17 @@ The principal is to get real time usage information, for example how many vcpus 
 
 ### Run
 
-For testing you can run as below
+I have created a Dockerfile to build an image with all python dependencies. It used the official python alpine image to limit size.
 
-```python libvirt_nova.py --port 9200 --log /var/log/libvirt_nova.log &```
+For example on port 9204
 
+```
+docker build --tag pylibvirtdocker:1.0 .
+docker run --rm -d  --network host \ 
+-v /var/run/libvirt/libvirt-sock-ro:/var/run/libvirt/libvirt-sock-ro:ro \
+-v "$(pwd)":/var/log/ \
+pylibvirtdocker  --log /var/log/libvirt_nova.log --port 9204
+```
 
 Options - 
 
